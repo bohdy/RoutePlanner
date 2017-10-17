@@ -5,15 +5,25 @@ import googlemaps
 import datetime
 import pickle
 
+gmaps = googlemaps.Client(key='AIzaSyBtgQ_VO_AiRkBbAaUBbklMRXlpL0kclKs')
+
+def getDistance(fromGPS, toGPS):
+    if fromGPS == toGPS:
+        return None
+
+    route = gmaps.distance_matrix(
+        {"lat": stations[x]["latitude"], "lng": stations[x]["longitude"]},
+        {"lat": stations[y]["latitude"], "lng": stations[y]["longitude"]},
+        language="cs-CZ", mode="driving")
+
+    return {
+        "timestamp": datetime.datetime.now().strftime("%Y%m%d%H%m%S"),
+        "duration": route["rows"][0]["elements"][0]["duration"]["value"],
+        "distance": route["rows"][0]["elements"][0]["distance"]["value"]
+    }
+
 def main(argv):
     stations = {}
-    """
-    stations[0] = {
-        "longitude": 14.455251,
-        "latitude": 50.119387,
-        "note": "START"
-    }
-    """
     with open("CNG.csv") as csvfile:
         i = 0
         reader = csv.DictReader(csvfile)
@@ -25,30 +35,42 @@ def main(argv):
                 "note": row["Name"],
             }
 
-        print "Total stations: ", i
+
+        inputFile = open("distmatrix.pkl", "rb")
+        stationsFromFile = pickle.load(inputFile)
+        DistMatrixFromFile = pickle.load(inputFile)
+        inputFile.close()
+
+
+        if len(stations) <> len(stationsFromFile):
+            print "Different number of stations (in CSV", len(stations),", in data", len(stationsFromFile),")! Need to combine."
+
+            for x in stations:
+                found = False
+                print x
+                for y in stationsFromFile:
+                    if stations[x]["latitude"] == stationsFromFile[y]["latitude"] and stations[x]["longitude"] == stationsFromFile[y]["longitude"]:
+                        print "Match, breaking yhe cycle..."
+                        found = True
+                        break
+
+                if found is False:
+                    index = len(stationsFromFile) + 1
+                    stationsFromFile[index] = {"latitude": stations[x]["latitude"], "longitude": stations[x]["longitude"], "note": stations[x]["note"]}
+
+                    DistMatrixFromFile.append([{"distance": 0, "duration": 0,"timestamp": None}] * index)
+
+                    for n in range(index):
+                        for g in range(len(DistMatrixFromFile[n]), index):
+                            DistMatrixFromFile[n].append([{"distance": 0, "duration": 0,"timestamp": None}])
+
+        #print len(stationsFromFile)
+        print "xxxxx"
+        for x in DistMatrixFromFile:
+            print len(x)
+        quit()
 
         DistMatrix = [[{"distance": 0} for x in range(i)] for y in range(i)]
-        for x in range(i):
-            DistMatrix[x][x] = None
-        """
-        stations[len(stations)] = {
-            "longitude": 18.265545,
-            "latitude": 49.826365,
-            "note": "KONEC",
-        }
-        """
-
-        gmaps = googlemaps.Client(key='AIzaSyBtgQ_VO_AiRkBbAaUBbklMRXlpL0kclKs')
-        """
-        places = []
-        for x in range(i):
-
-            if x < 15:
-                places.append({"lat": stations[x+1]["latitude"], "lng": stations[x+1]["longitude"]})
-
-        matrixG = gmaps.distance_matrix(places, places, language="cs-CZ", mode="driving")
-        print matrixG
-        """
 
         for x in range(i):
             if x == 0:
@@ -59,16 +81,6 @@ def main(argv):
                 if x == y:
                     continue
 
-                print "Duration for", x, " to", y
-                if DistMatrix[x][y]["distance"] == 0:
-                    route = gmaps.distance_matrix(
-                        {"lat": stations[x]["latitude"], "lng": stations[x]["longitude"]},
-                        {"lat": stations[y]["latitude"], "lng": stations[y]["longitude"]},
-                        language="cs-CZ", mode="driving")
-                    DistMatrix[x][y]["duration"] = route["rows"][0]["elements"][0]["duration"]["value"]
-                    DistMatrix[x][y]["distance"] = route["rows"][0]["elements"][0]["distance"]["value"]
-                    DistMatrix[x][y]["timestamp"] = datetime.datetime.now().strftime("%Y%m%d%H%m%S")
-                print "From ", x, " to ", y, " is distance ", DistMatrix[x][y]
 
         print DistMatrix
 
